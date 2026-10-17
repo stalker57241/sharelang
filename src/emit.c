@@ -6,7 +6,7 @@ void emit_syscall(FILE* file) {
 }
 
 void emit_mov(FILE* file, char* const left, char* const right) {
-    fprintf(file, "\tmov %s, %s", left, right);
+    fprintf(file, "\tmov %s, %s\n", left, right);
 }
 
 void emit_label(FILE* file, char* const label) {

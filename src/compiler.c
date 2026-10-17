@@ -17,6 +17,7 @@ static bool error = false;
 
 static Token (*peekn)(int n) = NULL;
 static Token (*next)() = NULL;
+static void (*prev)() = NULL;
 
 static FILE* assemblycode = NULL;
 
@@ -65,6 +66,19 @@ void compilerTerminate() {
     next = NULL;
     fclose(assemblycode);
 }
+void compilerSetPeeknFn(Token (*fn)(int)){
+    peekn = fn;
+}
+void compilerSetNextFn(Token (*fn)()){
+    next = fn;
+}
+void compilerSetPrevFn(void (*fn)()){
+    prev = fn;
+}
+
+// ------------------
+// COMPILING
+// ------------------
 static bool compileStatements();
 static bool compileStatement();
 static bool compileReturnStatement();
@@ -76,30 +90,37 @@ static bool compileStatements() {
     while (nextn.type != TOKEN_TYPE_EOF) {
         compileStatement();
         nextn = next();
+        if (nextn.type == TOKEN_TYPE_SEPARATOR && strcmp(nextn.text, ";") == 0) {
+            continue;
+        }
+        else {
+            return false;
+        }
     }
     return true;
 }
 static bool compileStatement() {
-    bool state = false;
-    #define TRY_COMPILE(what) if (what && !hasErrors()) return true
     
-    TRY_COMPILE(compileReturnStatement());
-    
-    #undef TRY_COMPILE
+    if(compileReturnStatement() && !hasErrors()) return true;
 
     return false;
 }
 static bool compileReturnStatement() {
-    Token current = peekn(0);
+    Token current = next();
     if (current.text == NULL) {
+        error = true;
         return false;
     }
     if (strcmp(current.text, "return") != 0) {
+        prev();
         return false;
     }
-    next();
-    Token result = peekn(1);
-    if (result.type != TOKEN_TYPE_DIGIT) return false;
+    Token result = next();
+    if (result.type != TOKEN_TYPE_DIGIT) {
+        error = true;
+        return false;
+    }
+    printf("compileReturnStatement: result.text = %s\n", result.text);
     emit_mov(assemblycode, "rax", "60");
     emit_mov(assemblycode, "rdi", result.text);
     emit_syscall(assemblycode);
@@ -109,7 +130,7 @@ static bool compileReturnStatement() {
 //     return true;
 // }
 bool compile() {
-    if (peekn == NULL || next == NULL) {
+    if (peekn == NULL || next == NULL || prev == NULL) {
         fprintf(stderr, "No peekn and/or next\n");
         return false;
     }
@@ -126,15 +147,10 @@ bool assemble() {
     char* command = calloc(length + 1, sizeof(char));
     size_t nextlength = snprintf(command, length + 1, "nasm -f elf64 %s -o %s", getAsmName(), OUTNAME);
     printf("assemble: nextlength = %zu\n", nextlength);
+    fflush(assemblycode);
     system(command);
     printf("OUTNAME: %s\n", OUTNAME);
     printf("Executed: %s\n", command);
     free(command);
     return true;
-}
-void compilerSetPeeknFn(Token (*fn)(int)){
-    peekn = fn;
-}
-void compilerSetNextFn(Token (*fn)()){
-    next = fn;
 }

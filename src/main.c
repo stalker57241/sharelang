@@ -27,6 +27,9 @@ static Token next() {
     if (cursor + 1 < size) return tokens[cursor++];
     return (Token) {NULL, TOKEN_TYPE_EOF, -1, -1};
 }
+static void prev() {
+    if (cursor > 0) cursor--;
+}
 static Token peekn(int offset) {
     if (cursor + offset < size) return tokens[cursor + offset];
     return (Token) {NULL, TOKEN_TYPE_EOF, -1, -1};
@@ -99,11 +102,13 @@ int main(const int argc, const char* const argv[]) {
         free(filenamenoext);
         free(filename);
     }
+    if (options.asmname != NULL)
+        compilerSetAsemblerPath(options.asmname);
     if (!compilerInit(options.outname)) {
         return 1;
     }
-    if (options.asmname != NULL) compilerSetAsemblerPath(options.asmname);
     compilerSetNextFn(next);
+    compilerSetPrevFn(prev);
     compilerSetPeeknFn(peekn);
     
     if (!compile()) {

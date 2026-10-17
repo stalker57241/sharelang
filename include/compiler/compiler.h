@@ -8,5 +8,6 @@ void compilerSetAsemblerPath(const char* filename);
 
 void compilerSetPeeknFn(Token (*fn)(int offset));
 void compilerSetNextFn(Token (*fn)());
+void compilerSetPrevFn(void (*fn)());
 
 bool compile();
