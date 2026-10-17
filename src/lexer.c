@@ -98,10 +98,9 @@ int digit(Token* token) {
 
 Token lexerNext() {
 	skipWhitespace();
-	printf("Was read: '%c' (0x%0X) %zu:%zu\n", last, last, row, column);
+	// printf("Was read: '%c' (0x%0X) %zu:%zu\n", last, last, row, column);
 	switch (last) {
 		case ';':
-			printf("SEPARATOR\n");
 			return (Token) {
 				.text = strdup(";"),
 				.type = TOKEN_TYPE_SEPARATOR,
