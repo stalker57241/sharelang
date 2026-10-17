@@ -1,5 +1,8 @@
+#include "lexer.h"
+
 #include <stdio.h>
 #include <stdbool.h>
+#include <stdlib.h>
 #include <string.h>
 
 static struct {
@@ -17,27 +20,36 @@ void printhelp(const char* progname) {
 int main(const int argc, const char* const argv[]) {
     enum {
         STATE_FILENAME = 0,
-    } state;
+    } state = STATE_FILENAME;
     for (int i = 1; i < argc; i++) {
         switch (state) {
         case STATE_FILENAME:
-            if (*argv[i] == '-') {
-                if (strcmp(argv[i], "--help") == 0 || strcmp(argv[i], "-h") == 0) {
-                    options.needhelp = true;
-                }
-                continue;
+            if (strcmp(argv[i], "--help") == 0 || strcmp(argv[i], "-h") == 0) {
+                printf("Needhelp\n");
+                options.needhelp = true;
             }
-            else options.filename = argv[i];
+            else {
+                printf("argv[%d] = %s\n", i, argv[i]);
+                options.filename = argv[i];
+            }
+            break;
+        default:
+            printf("State: %d\n", state);
         }
     }
-    if (options.needhelp) {
+    if (options.needhelp || options.filename == NULL) {
+        printf("options.filename: %s\n", options.filename == NULL ? "(null)" : options.filename);
         printhelp(argv[0]);
-        return 0;
+        return options.filename == NULL ? 1 : 0;
     }
-    if (options.filename == NULL) {
-        printhelp(argv[0]);
+    if (!lexerInit(options.filename)) {
         return 1;
     }
-    printf("Hello world!\n");
+    while (lexerHasTokens()) {
+        Token token = lexerNext();
+        printf("token: '%s'\n", token.text);
+        free(token.text);
+    }
+    lexerTerminate();
     return 0;
 }
