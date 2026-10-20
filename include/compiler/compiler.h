@@ -11,3 +11,5 @@ void compilerSetNextFn(Token (*fn)());
 void compilerSetPrevFn(void (*fn)());
 
 bool compile();
+size_t compilerGetLastRow();
+size_t compilerGetLastColumn();

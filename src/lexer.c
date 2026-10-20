@@ -100,6 +100,64 @@ Token lexerNext() {
 	skipWhitespace();
 	// printf("Was read: '%c' (0x%0X) %zu:%zu\n", last, last, row, column);
 	switch (last) {
+		case '(':
+			return (Token) {
+				.text = strdup("("),
+				.type = TOKEN_TYPE_OPEN_BRACKET,
+				.row = row,
+				.column = column
+			};
+		case ')':
+			return (Token) {
+				.text = strdup(")"),
+				.type = TOKEN_TYPE_CLOSE_BRACKET,
+				.row = row,
+				.column = column
+			};
+		case '+': case '-': {
+			int next = fgetc(file);
+			if (last == next) {
+				char* str = strdup((char*) &last);
+				str = strcat(str, str);
+				Token token = {
+					.text = str,
+					.type = TOKEN_TYPE_OPERATOR,
+					.row = row,
+					.column = column
+				};
+				fseek(file, -1, SEEK_CUR);
+				readc();
+				return token;
+			}
+			else {
+				fseek(file, -1, SEEK_CUR);
+			}
+		}
+		case '*': case '/': case '%': {
+			int next = fgetc(file);
+			if (next == '=') {
+				char* buffer = strdup((char*) &last);
+				buffer = realloc(buffer, 3  *sizeof(char));
+				buffer[1] = '=';
+				fseek(file, -1, SEEK_CUR);
+				Token token = {
+					.text = buffer,
+					.type = TOKEN_TYPE_OPERATOR,
+					.row = row, .column = column
+				};
+				readc();
+				return token;
+			}
+			else {
+				fseek(file, -1, SEEK_CUR);
+			}
+			return (Token) {
+				.text = strdup((char*) &last),
+				.type = TOKEN_TYPE_OPERATOR,
+				.row = row,
+				.column = column
+			};
+		}
 		case ';':
 			return (Token) {
 				.text = strdup(";"),

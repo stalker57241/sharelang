@@ -112,7 +112,10 @@ int main(const int argc, const char* const argv[]) {
     compilerSetPeeknFn(peekn);
     
     if (!compile()) {
+        fprintf(stderr, "Failed to compile %s.\n", options.filename);
+        fprintf(stderr, "Error at %s:%zu:%zu\n", options.filename, compilerGetLastRow(), compilerGetLastColumn());
         compilerTerminate();
+        free(tokens);
         return 1;
     }
     assemble();

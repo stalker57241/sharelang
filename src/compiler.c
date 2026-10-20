@@ -9,6 +9,8 @@
 #include <stdlib.h>
 #include <string.h>
 
+static const char* STACK_REGISTER = "rbx";
+static const char* MATH_REGISTER = "rcx";
 
 static char* OUTNAME = NULL;
 static char* ASMNAME = NULL;
@@ -82,6 +84,17 @@ void compilerSetPrevFn(void (*fn)()){
 static bool compileStatements();
 static bool compileStatement();
 static bool compileReturnStatement();
+static bool compileExpression();
+static bool compileAddition();
+static bool compileMultiplication();
+static bool compileValue();
+// + | -
+// * | / | %
+// value | varname | (expr)
+
+// SUM = MUL | SUM + MUL | SUM - MUL
+// MUL = VALUE | MUL * VALUE | MUL / VALUE | MUL % VALUE
+// VALUE  = digit | '(' expr ')'
 
 static bool compileStatements() {
     emit_global(assemblycode, "_start");
@@ -115,15 +128,111 @@ static bool compileReturnStatement() {
         prev();
         return false;
     }
-    Token result = next();
-    if (result.type != TOKEN_TYPE_DIGIT) {
+    if (!compileExpression()) {
         error = true;
         return false;
     }
-    printf("compileReturnStatement: result.text = %s\n", result.text);
-    emit_mov(assemblycode, "rax", "60");
-    emit_mov(assemblycode, "rdi", result.text);
-    emit_syscall(assemblycode);
+    // printf("compileReturnStatement: result.text = %s\n", result.text);
+    emit_exit(assemblycode);
+    return true;
+}
+static bool compileExpression() {
+    return compileAddition();
+}
+static bool compileAddition() {
+    printf("%u\tcompileAddition\n", __LINE__);
+    if (!compileMultiplication()) return false;
+    while (true) {
+
+        Token nxt = peekn(0);
+        printf("nxt(peekn): %s\n", nxt.text);
+        struct {
+            bool add:1;
+            bool sub:1;
+        } state = {0};
+        if (!(
+            nxt.type == TOKEN_TYPE_OPERATOR && (
+                (state.add = (strcmp(nxt.text, "+") == 0)) ||
+                (state.sub = (strcmp(nxt.text, "-") == 0))
+            )
+        )) {
+            printf("compileAddition: no sign +/-\n");
+            break;
+        }
+        if (state.add == state.sub) break;
+        next();
+        if (!compileAddition()) return false;
+        emit_pop(assemblycode, MATH_REGISTER);
+        emit_pop(assemblycode, STACK_REGISTER);
+        if (state.add) emit_add(assemblycode, STACK_REGISTER, MATH_REGISTER);
+        else if (state.sub) emit_sub(assemblycode, STACK_REGISTER, MATH_REGISTER);
+        else return false;
+        emit_push(assemblycode, STACK_REGISTER);
+        emit_empty(assemblycode);
+    }
+    return true;
+}
+static bool compileMultiplication() {
+    printf("%u\tcompileMultiplication\n", __LINE__);
+    if (!compileValue()) return false;
+    while (true) {
+
+        Token nxt = peekn(0);
+        struct {
+            bool mul:1;
+            bool div:1;
+            bool mod:1;
+        } state = {0};
+        if (!(
+            nxt.type == TOKEN_TYPE_OPERATOR && (
+            (state.mul = (strcmp(nxt.text, "*") == 0)) ||
+            (state.div = (strcmp(nxt.text, "/") == 0)) ||
+            (state.mod = (strcmp(nxt.text, "%") == 0))
+        ))) {
+            printf("compileMultiplication: no sign *|/|%%\n");
+            break;
+        }
+        next();
+        if (!compileMultiplication()) return false;
+        emit_pop(assemblycode, MATH_REGISTER);
+        emit_pop(assemblycode, STACK_REGISTER);
+        if(state.mul == true) emit_mul(assemblycode, STACK_REGISTER, MATH_REGISTER);
+        else if (state.div == true) emit_div(assemblycode, STACK_REGISTER, MATH_REGISTER);
+        else if (state.mod == true) emit_mod(assemblycode, STACK_REGISTER, MATH_REGISTER);
+        else return false;
+        emit_push(assemblycode, STACK_REGISTER);
+        emit_empty(assemblycode);
+    }
+    return true;
+}
+static bool compileValue() {
+    printf("%u\tcompileValue\n", __LINE__);
+    Token token = peekn(0);
+    if ((token.type == TOKEN_TYPE_OPEN_BRACKET && strcmp(token.text, "(") == 0)) {
+        printf("compileValue:bracket\n");
+        next();
+        if (!compileExpression()) {
+            return false;
+        }
+        printf("compileValue expr exit\n");
+        token = next();
+        if (!(token.type == TOKEN_TYPE_CLOSE_BRACKET && strcmp(token.text, ")") == 0)) {
+            return false;
+        }
+    }
+    else {
+        Token current = next();
+        char* value = NULL;
+        switch (current.type) {
+        case TOKEN_TYPE_LITERAL: {error = true; return false;}
+        case TOKEN_TYPE_DIGIT: value = current.text; break;
+        default: {error = true; return false;}
+        }
+        emit_mov(assemblycode, (char*) STACK_REGISTER, value);
+        emit_push(assemblycode, (char*) STACK_REGISTER);
+        emit_empty(assemblycode);
+        return true;        
+    }
     return true;
 }
 // static bool compileDigit() {
@@ -153,4 +262,11 @@ bool assemble() {
     printf("Executed: %s\n", command);
     free(command);
     return true;
+}
+
+size_t compilerGetLastRow() {
+    return peekn(-1).row;
+}
+size_t compilerGetLastColumn() {
+    return peekn(-1).column;
 }
