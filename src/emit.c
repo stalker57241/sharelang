@@ -48,12 +48,22 @@ void emit_mul(FILE* file, const char* const who, const char* const what) {
  
 void emit_div(FILE* file, const char* const who, const char* const what) {
     // fprintf(file, "\tadd %s, %s\n", who, what);
-    printf("emit:\tidiv %s, %s\n", who, what);
+	emit_mov(file, "rax", who);
+	fprintf(file, "\tcqo\n");
+	printf("\tcqo\n");
+	fprintf(file, "\tidiv %s\n", what);
+    printf("emit:\tidiv rcx\n");
+	emit_mov(file, who, "rax");
 }
  
 void emit_mod(FILE* file, const char* const who, const char* const what) {
     // fprintf(file, "\tadd %s, %s\n", who, what);
-    printf("emit:\tadd %s, %s\n", who, what);
+	emit_mov(file, "rax", who);
+	fprintf(file, "\tcqo\n");
+	printf("\tcqo\n");
+	fprintf(file, "\tidiv %s\n", what);
+    printf("emit:\tidiv rcx\n");
+	emit_mov(file, who, "rdx");
 }
 void emit_exit(FILE* file) {
     emit_mov(file, "rax", "60");
