@@ -21,12 +21,26 @@ static Token (*peekn)(int n) = NULL;
 static Token (*next)() = NULL;
 static void (*prev)() = NULL;
 
+enum LiteralType {
+    LITERAL = 0,
+    KEYWORD_INT,
+};
+
+static FILE* bss_section = NULL;
+static FILE* text_section = NULL;
+
 static FILE* assemblycode = NULL;
 
+static void storeVarname(char* varname, size_t size) {
+
+}
+static enum LiteralType getLiteralType(const char* text) {
+    if (strcmp(text, "int") == 0) return KEYWORD_INT;
+    return LITERAL;
+}
 static bool hasErrors() {
     return error;
 }
-
 static int generateAsmFile() {
     if (ASMNAME == NULL) {
         assemblycode = tmpfile();
@@ -83,6 +97,7 @@ void compilerSetPrevFn(void (*fn)()){
 // ------------------
 static bool compileStatements();
 static bool compileStatement();
+static bool compileVarDefinition();
 static bool compileReturnStatement();
 static bool compileExpression();
 static bool compileAddition();
@@ -113,8 +128,9 @@ static bool compileStatements() {
     return true;
 }
 static bool compileStatement() {
-    
-    if(compileReturnStatement() && !hasErrors()) return true;
+
+    if (compileVarDefinition() && !hasErrors()) return true;
+    if (compileReturnStatement() && !hasErrors()) return true;
 
     return false;
 }
@@ -134,6 +150,29 @@ static bool compileReturnStatement() {
     }
     // printf("compileReturnStatement: result.text = %s\n", result.text);
     emit_exit(assemblycode);
+    return true;
+}
+static bool compileVarDefinition() {
+    Token current = peekn(0);
+    if (current.type != TOKEN_TYPE_LITERAL)  return false;
+    if (getLiteralType(current.text) != KEYWORD_INT) return false;
+    Token type = next();
+    Token name = peekn(0);
+    if (getLiteralType(name.text) != LITERAL) {
+        prev();
+        return false;
+    }
+    next();
+    storeVarname(name.text, sizeof(int));
+    Token isdecl = peekn(0);
+    if (isdecl.type == TOKEN_TYPE_SEPARATOR) return true;
+    else if (isdecl.type == TOKEN_TYPE_OPERATOR && strcmp(isdecl.text, "=") == 0) {
+        if (!compileExpression()) {
+            return false;
+        }
+        emit_pop(assemblycode, name.text);
+        return true;
+    }
     return true;
 }
 static bool compileExpression() {

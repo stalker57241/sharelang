@@ -11,6 +11,19 @@ void emit_mov(FILE* file, char* const left, char* const right) {
     printf("emit:\tmov %s, %s\n", left, right);
 }
 
+static const char* sectionGetType(enum SectionType type) {
+    switch (type) {
+    case SECTION_TYPE_TEXT: return "text";
+    case SECTION_TYPE_DATA: return "data";
+    case SECTION_TYPE_RODATA: return "rodata";
+    case SECTION_TYPE_BSS: return "bss";
+    }
+}
+
+void emit_section(FILE* file, const char* name, enum SectionType type) {
+    fprintf(file, "\t%s .%s\n", name, sectionGetType(type));
+}
+
 void emit_label(FILE* file, char* const label) {
     fprintf(file, "%s:\n", label);
     printf("emit(label): %s:\n", label);
@@ -69,4 +82,8 @@ void emit_exit(FILE* file) {
     emit_mov(file, "rax", "60");
     emit_pop(file, "rdi");
     emit_syscall(file);
+}
+
+void emit_res(FILE* file, const char* varname, enum Size sz, unsigned int bytecount) {
+    fprintf(file, "\t%s res%c %u\n", varname, sz, bytecount);
 }
