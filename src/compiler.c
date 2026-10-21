@@ -192,6 +192,7 @@ static bool compileMultiplication() {
             printf("compileMultiplication: no sign *|/|%%\n");
             break;
         }
+		printf("oper: %s\n", nxt.text);
         next();
         if (!compileMultiplication()) return false;
         emit_pop(assemblycode, MATH_REGISTER);
