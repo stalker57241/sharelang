@@ -100,20 +100,25 @@ Token lexerNext() {
 	skipWhitespace();
 	// printf("Was read: '%c' (0x%0X) %zu:%zu\n", last, last, row, column);
 	switch (last) {
-		case '(':
+		case '(': case '{': case '[': {
+			char* str = strdup((char*) &last);
 			return (Token) {
-				.text = strdup("("),
+				.text = str,
 				.type = TOKEN_TYPE_OPEN_BRACKET,
 				.row = row,
 				.column = column
 			};
-		case ')':
+		}
+		case ')': case '}': case ']': {
+			char* str = strdup((char*) &last);
 			return (Token) {
-				.text = strdup(")"),
+				.text = str,
 				.type = TOKEN_TYPE_CLOSE_BRACKET,
 				.row = row,
 				.column = column
 			};
+		}
+		case '=':
 		case '+': case '-': {
 			int next = fgetc(file);
 			if (last == next) {

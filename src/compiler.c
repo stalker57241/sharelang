@@ -9,8 +9,8 @@
 #include <stdlib.h>
 #include <string.h>
 
-static const char* STACK_REGISTER = "rbx";
-static const char* MATH_REGISTER = "rcx";
+static char* STACK_REGISTER = "rbx";
+static char* MATH_REGISTER = "rcx";
 
 static char* OUTNAME = NULL;
 static char* ASMNAME = NULL;
@@ -21,7 +21,15 @@ static Token (*peekn)(int n) = NULL;
 static Token (*next)() = NULL;
 static void (*prev)() = NULL;
 
-static FILE* assemblycode = NULL;
+static char* lastvarname = NULL;
+
+static FILE* globaldatacode = NULL;
+
+static struct function {
+    FILE* assemblycode;
+}* function = NULL;
+
+static FILE* resultcode = NULL;
 
 static bool hasErrors() {
     return error;
@@ -29,11 +37,11 @@ static bool hasErrors() {
 
 static int generateAsmFile() {
     if (ASMNAME == NULL) {
-        assemblycode = tmpfile();
+        resultcode = tmpfile();
     } else {
-        assemblycode = fopen(ASMNAME, "w");
+        resultcode = fopen(ASMNAME, "w");
     }
-    if (assemblycode == NULL) {
+    if (resultcode == NULL) {
         fprintf(stderr, "Failed to create assembly file\n");
         return false;
     }
@@ -41,15 +49,17 @@ static int generateAsmFile() {
 }
 static char* getAsmName() {
     char buffer[PATH_MAX] = {0};
-    sprintf(buffer, "/dev/fd/%d", fileno(assemblycode));
+    sprintf(buffer, "/dev/fd/%d", fileno(resultcode));
 
     return strdup(buffer);
 }
 int compilerInit(const char* outname) {
     if (outname == NULL) return false;
     OUTNAME = strdup(outname);
+    globaldatacode = tmpfile();
+    function = malloc(sizeof(struct function));
+    function->assemblycode = tmpfile();
     return generateAsmFile();
-    // return true;
 }
 void compilerSetAsemblerPath(const char* asmname) {
     ASMNAME = strdup(asmname);
@@ -66,7 +76,13 @@ void compilerTerminate() {
     }
     peekn = NULL;
     next = NULL;
-    fclose(assemblycode);
+
+    fclose(globaldatacode);
+    fclose(function->assemblycode);
+
+    fclose(resultcode);
+
+    free(function);
 }
 void compilerSetPeeknFn(Token (*fn)(int)){
     peekn = fn;
@@ -83,6 +99,8 @@ void compilerSetPrevFn(void (*fn)()){
 // ------------------
 static bool compileStatements();
 static bool compileStatement();
+static bool compileVarDeclaration();
+static bool compileVarDefinition();
 static bool compileReturnStatement();
 static bool compileExpression();
 static bool compileAddition();
@@ -97,8 +115,12 @@ static bool compileValue();
 // VALUE  = digit | '(' expr ')'
 
 static bool compileStatements() {
-    emit_global(assemblycode, "_start");
-    emit_label(assemblycode, "_start");
+    emit_section(globaldatacode, SECTION_TYPE_BSS);
+
+    emit_section(function->assemblycode, SECTION_TYPE_TEXT);
+    emit_global(function->assemblycode, "_start");
+    emit_label(function->assemblycode, "_start");
+    
     Token nextn = peekn(0);
     while (nextn.type != TOKEN_TYPE_EOF) {
         compileStatement();
@@ -113,10 +135,39 @@ static bool compileStatements() {
     return true;
 }
 static bool compileStatement() {
-    
+    if(compileVarDeclaration()  && !hasErrors()) return true;
     if(compileReturnStatement() && !hasErrors()) return true;
 
     return false;
+}
+static bool compileVarDeclaration() {
+    if (!compileVarDefinition()) return false;
+
+    Token operator = peekn(0);
+    if (operator.type == TOKEN_TYPE_OPERATOR && strcmp(operator.text, "=") == 0) {
+        next();
+        compileExpression();
+        char* buffer = NULL;
+        emit_pop(function->assemblycode, buffer = wrap_addr(lastvarname));
+        free(buffer);
+        return true;
+    }
+    else if (operator.type == TOKEN_TYPE_SEPARATOR && strcmp(operator.text, ";") == 0) return true;
+    error = true;
+    return false;
+}
+static bool compileVarDefinition() {
+    Token type = peekn(0);
+    if (type.type != TOKEN_TYPE_LITERAL || strcmp(type.text, "int") != 0) { 
+        return false; // not int
+    }
+    type = next();
+    Token name = next();
+    const int size = sizeof(int);
+    emit_res(globaldatacode, name.text, size, 1);
+    lastvarname = name.text;
+    printf("compileVarDefinition\n");
+    return true;
 }
 static bool compileReturnStatement() {
     Token current = next();
@@ -133,7 +184,7 @@ static bool compileReturnStatement() {
         return false;
     }
     // printf("compileReturnStatement: result.text = %s\n", result.text);
-    emit_exit(assemblycode);
+    emit_exit(function->assemblycode);
     return true;
 }
 static bool compileExpression() {
@@ -162,13 +213,13 @@ static bool compileAddition() {
         if (state.add == state.sub) break;
         next();
         if (!compileAddition()) return false;
-        emit_pop(assemblycode, MATH_REGISTER);
-        emit_pop(assemblycode, STACK_REGISTER);
-        if (state.add) emit_add(assemblycode, STACK_REGISTER, MATH_REGISTER);
-        else if (state.sub) emit_sub(assemblycode, STACK_REGISTER, MATH_REGISTER);
+        emit_pop(function->assemblycode, MATH_REGISTER);
+        emit_pop(function->assemblycode, STACK_REGISTER);
+        if (state.add) emit_add(function->assemblycode, STACK_REGISTER, MATH_REGISTER);
+        else if (state.sub) emit_sub(function->assemblycode, STACK_REGISTER, MATH_REGISTER);
         else return false;
-        emit_push(assemblycode, STACK_REGISTER);
-        emit_empty(assemblycode);
+        emit_push(function->assemblycode, STACK_REGISTER);
+        emit_empty(function->assemblycode);
     }
     return true;
 }
@@ -195,14 +246,14 @@ static bool compileMultiplication() {
 		printf("oper: %s\n", nxt.text);
         next();
         if (!compileMultiplication()) return false;
-        emit_pop(assemblycode, MATH_REGISTER);
-        emit_pop(assemblycode, STACK_REGISTER);
-        if(state.mul == true) emit_mul(assemblycode, STACK_REGISTER, MATH_REGISTER);
-        else if (state.div == true) emit_div(assemblycode, STACK_REGISTER, MATH_REGISTER);
-        else if (state.mod == true) emit_mod(assemblycode, STACK_REGISTER, MATH_REGISTER);
+        emit_pop(function->assemblycode, MATH_REGISTER);
+        emit_pop(function->assemblycode, STACK_REGISTER);
+        if(state.mul == true) emit_mul(function->assemblycode, STACK_REGISTER, MATH_REGISTER);
+        else if (state.div == true) emit_div(function->assemblycode, STACK_REGISTER, MATH_REGISTER);
+        else if (state.mod == true) emit_mod(function->assemblycode, STACK_REGISTER, MATH_REGISTER);
         else return false;
-        emit_push(assemblycode, STACK_REGISTER);
-        emit_empty(assemblycode);
+        emit_push(function->assemblycode, STACK_REGISTER);
+        emit_empty(function->assemblycode);
     }
     return true;
 }
@@ -224,14 +275,23 @@ static bool compileValue() {
     else {
         Token current = next();
         char* value = NULL;
+        bool freevalue = false;
         switch (current.type) {
-        case TOKEN_TYPE_LITERAL: {error = true; return false;}
-        case TOKEN_TYPE_DIGIT: value = current.text; break;
+        case TOKEN_TYPE_LITERAL: {
+            value = wrap_addr(current.text);
+            freevalue = true;
+            break;
+        }
+        case TOKEN_TYPE_DIGIT:{
+            value = current.text;
+            break;
+        } 
         default: {error = true; return false;}
         }
-        emit_mov(assemblycode, (char*) STACK_REGISTER, value);
-        emit_push(assemblycode, (char*) STACK_REGISTER);
-        emit_empty(assemblycode);
+        emit_mov(function->assemblycode, (char*) STACK_REGISTER, value);
+        emit_push(function->assemblycode, (char*) STACK_REGISTER);
+        emit_empty(function->assemblycode);
+        if (freevalue) free(value);
         return true;        
     }
     return true;
@@ -249,6 +309,27 @@ bool compile() {
         return false;
     }
     compileStatements();
+    
+    fflush(globaldatacode);
+    fflush(function->assemblycode);
+    
+    size_t datalen = ftell(globaldatacode);
+    size_t assemblylen = ftell(function->assemblycode);
+    
+    char* databuffer = calloc(datalen + 1, sizeof(char));
+    databuffer[datalen] = '\0';
+    rewind(globaldatacode);
+    fread(databuffer, datalen, sizeof(char), globaldatacode);
+    fwrite(databuffer, datalen, sizeof(char), resultcode);
+    free(databuffer);
+    
+    char* assemblybuffer = calloc(assemblylen + 1, sizeof(char));
+    assemblybuffer[assemblylen] = '\0';
+    rewind(function->assemblycode);
+    fread(assemblybuffer, assemblylen, sizeof(char), function->assemblycode);
+    fwrite(assemblybuffer, assemblylen, sizeof(char), resultcode);
+    free(assemblybuffer);
+
     return true;
 }
 bool assemble() {
@@ -257,7 +338,7 @@ bool assemble() {
     char* command = calloc(length + 1, sizeof(char));
     size_t nextlength = snprintf(command, length + 1, "nasm -f elf64 %s -o %s", getAsmName(), OUTNAME);
     printf("assemble: nextlength = %zu\n", nextlength);
-    fflush(assemblycode);
+    fflush(resultcode);
     system(command);
     printf("OUTNAME: %s\n", OUTNAME);
     printf("Executed: %s\n", command);
