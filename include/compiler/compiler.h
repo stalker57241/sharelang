@@ -4,7 +4,8 @@
 
 int compilerInit(const char* filename);
 void compilerTerminate();
-void compilerSetAsemblerPath(const char* filename);
+void compilerSetAssemblyFile(const char* filename);
+void compilerSetDebug(bool value);
 
 void compilerSetPeeknFn(Token (*fn)(int offset));
 void compilerSetNextFn(Token (*fn)());

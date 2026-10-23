@@ -9,10 +9,11 @@
 
 static struct {
     bool needhelp:1;
+    bool isdebug:1;
     const char* filename;
     const char* asmname;
     const char* outname;
-} options = {0};
+} options = {false, false, NULL, NULL, NULL};
 
 void printhelp(const char* progname) {
     printf("Usage:\n");
@@ -48,6 +49,7 @@ int main(const int argc, const char* const argv[]) {
                 printf("Needhelp\n");
                 options.needhelp = true;
             }
+            else if (strcmp(argv[i], "-D") == 0 || strcmp(argv[i], "--debug") == 0) options.isdebug = true;
             else if (strcmp(argv[i], "-o") == 0 || strcmp(argv[i], "--out") == 0) state = STATE_OUTNAME;
             else if (strcmp(argv[i], "-a") == 0 || strcmp(argv[i], "--asm") == 0) state = STATE_ASMNAME;
             else {
@@ -102,8 +104,9 @@ int main(const int argc, const char* const argv[]) {
         free(filenamenoext);
         free(filename);
     }
+    compilerSetDebug(options.isdebug);
     if (options.asmname != NULL)
-        compilerSetAsemblerPath(options.asmname);
+        compilerSetAssemblyFile(options.asmname);
     if (!compilerInit(options.outname)) {
         return 1;
     }

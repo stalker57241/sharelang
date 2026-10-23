@@ -1,6 +1,7 @@
 #include "emit.h"
 #include <stdlib.h>
 #include <string.h>
+#include <stdarg.h>
 
 void emit_section(FILE* file, enum SectionType type) {
     switch (type) {
@@ -58,7 +59,17 @@ void emit_sub(FILE* file, char* who, char* what) {
 void emit_empty(FILE* file) {
     fprintf(file, "\n");
 }
- 
+void emit_comment(FILE* file, const char* const fmt, ...) {
+    if (debug) {
+
+        va_list args;
+        fprintf(file, "; ");
+        va_start(args, fmt);
+        vfprintf(file, fmt, args);
+        va_end(args);
+        fprintf(file, "\n");
+    }
+}
 void emit_mul(FILE* file, char* who, char* what) {
     fprintf(file, "\timul %s, %s\n", who, what);
     printf("emit:\timul %s, %s\n", who, what);
@@ -83,6 +94,11 @@ void emit_mod(FILE* file, char* who, char* what) {
     printf("emit:\tidiv rcx\n");
 	emit_mov(file, who, "rdx");
 }
+
+void emit_neg(FILE* file, char* who) {
+    fprintf(file, "\tneg %s\n", who);
+}
+
 void emit_exit(FILE* file) {
     emit_mov(file, "rax", "60");
     emit_pop(file, "rdi");
@@ -102,8 +118,24 @@ void emit_res(FILE* file, char* name, int size, unsigned int count) {
     }
     fprintf(file, "%s res%c %u\n", name, sz_char, count);
 }
-char* wrap_addr(char* text) {
-    char* buffer = calloc(strlen(text) + 2, sizeof(char));
-    sprintf(buffer, "[%s]", text);
+char* wrap_addr(char* text, int size) {
+    size_t requiredsize = 0;
+    switch (size){
+    case 1: requiredsize = snprintf(NULL, 0, "byte [%s]", text); break;
+    case 2: requiredsize = snprintf(NULL, 0, "word [%s]", text); break;
+    case 4: requiredsize = snprintf(NULL, 0, "dword [%s]", text); break;
+    case 8: requiredsize = snprintf(NULL, 0, "qword [%s]", text); break;
+    default: requiredsize = snprintf(NULL, 0, "[%s]", text); break;
+    }
+    char* buffer = calloc(requiredsize + 1, sizeof(char));
+    snprintf(buffer, requiredsize + 1, "[%s]", text);
+    switch (size){
+    case 1: snprintf(buffer, requiredsize + 1, "byte [%s]", text); break;
+    case 2: snprintf(buffer, requiredsize + 1, "word [%s]", text); break;
+    case 4: snprintf(buffer, requiredsize + 1, "dword [%s]", text); break;
+    case 8: snprintf(buffer, requiredsize + 1, "qword [%s]", text); break;
+    default: snprintf(buffer, requiredsize + 1, "[%s]", text); break;
+    }
+    buffer[requiredsize] = '\0';
     return buffer;
 }

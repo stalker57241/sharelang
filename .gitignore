@@ -3,4 +3,5 @@ build/
 *.a
 *.out
 /*.asm
+/*.s
 .vscode/
