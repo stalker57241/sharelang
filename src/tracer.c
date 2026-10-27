@@ -1,5 +1,6 @@
 #include <stdbool.h>
 #include <stddef.h>
+#include <stdlib.h>
 
 #include "tracer.h"
 
@@ -12,6 +13,6 @@ int tracerInit() {
     return true;
 }
 void tracerTerminate() {
-    while (root_stack = tracerPopStack(root_stack));
+    while ((root_stack = tracerPopStack(root_stack)));
     return;
 }
