@@ -4,6 +4,7 @@
 #include "compiler.h"
 #include "emit.h"
 #include "assembler.h"
+#include "tracer.h"
 
 #include <linux/limits.h>
 #include <stdbool.h>
@@ -80,6 +81,7 @@ int compilerInit(const char* outname) {
     globaldatacode = tmpfile();
     function = malloc(sizeof(struct function));
     function->assemblycode = tmpfile();
+    tracerInit();
     return generateAsmFile();
 }
 void compilerSetAssemblyFile(const char* asmname) {
@@ -104,6 +106,7 @@ void compilerTerminate() {
     fclose(resultcode);
 
     free(function);
+    tracerTerminate();
 }
 void compilerSetPeeknFn(Token (*fn)(int)){
     peekn = fn;
