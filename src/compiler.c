@@ -124,8 +124,8 @@ void compilerSetPrevFn(void (*fn)()){
 static bool compileStatements();
 static bool compileStatement();
 // Stmt
-static bool compileVarDeclaration();
-static bool compileVarDefinition();
+static bool compileGlobalVarDeclaration();
+static bool compileGlobalVarDefinition();
 static bool compileReturnStatement();
 
 // Expr
@@ -163,13 +163,13 @@ static bool compileStatements() {
     return true;
 }
 static bool compileStatement() {
-    if(compileVarDeclaration()  && !hasErrors()) return true;
+    if(compileGlobalVarDeclaration()  && !hasErrors()) return true;
     if(compileReturnStatement() && !hasErrors()) return true;
 
     return false;
 }
-static bool compileVarDeclaration() {
-    if (!compileVarDefinition()) return false;
+static bool compileGlobalVarDeclaration() {
+    if (!compileGlobalVarDefinition()) return false;
 
     Token operator = peekn(0);
     if (operator.type == TOKEN_TYPE_OPERATOR && strcmp(operator.text, "=") == 0) {
@@ -186,7 +186,7 @@ static bool compileVarDeclaration() {
     state.error = true;
     return false;
 }
-static bool compileVarDefinition() {
+static bool compileGlobalVarDefinition() {
     Token type = peekn(0);
     if (type.type != TOKEN_TYPE_LITERAL || strcmp(type.text, "int") != 0) { 
         return false; // not int
@@ -198,7 +198,7 @@ static bool compileVarDefinition() {
     state.hasbss = 1;
     lastvarname = name.text;
     lasttypesize = 4;
-    printf("compileVarDefinition\n");
+    printf("compileGlobalVarDefinition\n");
     return true;
 }
 static bool compileReturnStatement() {
